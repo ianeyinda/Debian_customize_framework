@@ -1,0 +1,129 @@
+#!/bin/bash
+# version 1
+
+# function to change interface name
+function inter_change {
+	cd /etc/udev/rules.d
+	ln -s /dev/null 80-net-setup-link.rules
+	sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"/' /etc/default/grub
+	update-grub
+	echo " done "
+	sleep 10
+	reboot
+}
+
+# function to remove libre office
+function libre_remover {
+	apt-get remove --purge libreoffice*
+	apt-get clean
+	apt-get autoremove
+}
+
+# function to customize mate desktop
+function mate_customize {
+	apt install mate-dock-applet
+	apt install slick-greeter
+	apt install mate-tweak
+        apt install mozo
+	sed -i 's/#greeter-session=example-gtk-gnome/session-greeter=slick-greeter/' /etc/lightdm/lightdm.conf
+	sed -i 's/#greeter-hide-user=false/greeter-hide-user=false/' /etc/lightdm/lightdm.conf
+	touch /etc/lightdm/slick-greeter.conf
+	cd /etc/lightdm
+	read -p " Enter path to background image: " background
+	echo "[Greeter]" > slick-greeter.conf
+	echo "draw-user-backgrounds=false" >> slick-greeter.conf
+	echo "draw-grid=false" >> slick-greeter.conf
+	echo "background=$background" >> slick-greeter.conf #image to background -- change the path
+	# systemctl was here originally.
+	touch ~/.config/gtk-3.0/gtk.css #Remove the three dots on system tray
+	cd ~/.config/gtk-3.0/
+	echo "MatePanelAppletFrameDBus {" > gtk.css
+	echo "background:none" >> gtk.css
+	echo "}" >> gtk.css
+	systemctl restart lightdm
+}
+
+# function installing some of the tools and configuring the system accordingly
+function tool_install {
+	apt install wireshark
+	apt install blueman
+	apt install mozo
+	apt install net-tools
+	apt install dnsutils
+	apt install bsdgames
+	apt install steghide
+	apt install stegcracker
+	apt install strace # tool used to debug by tracing system calls and signal call
+	apt install ltrace # tool used to trace library call
+	apt install cherrytree
+	apt install aircrack-ng
+	echo "export PATH=$PATH:/sbin" >> ~/.bashrc # making adminstrative tools available to current user e.g ifconfig
+	apt-get install vim-gui-common vim-runtime
+	delgroup --system wireshark
+	addgroup --system wireshark
+	dpkg-reconfigure wireshark-common
+	read -p " Input your username: " username
+	usermod -aG wireshark $username
+	apt install alien # tool used to change rpm to apt
+	usermod -aG sudo $username
+
+}
+
+# function to install qemu
+qemu_installer() {
+	check_threads=`egrep -c '(vmx|svm)' /proc/cpuinfo` #looks at how many virtualization threads are available (processors or virtual processors you can assign) should not be zero 
+	if [ $check_threads -eq 0 ]
+	then
+		echo " virtualization might not be enable "
+	else
+		# installs qemu and virtual machine manager
+		sudo apt install qemu-kvm qemu-system qemu-utils python3 python3-pip libvirt-clients libvirt-daemon-system bridge-utils virtinst libvirt-daemon virt-manager -y
+		sudo systemctl status libvirtd.service # checks if libvirtd.service started
+		#start default network for networking
+		sudo virsh net-start default # network default started
+		sudo virsh net-autostart default # network default marked as autostart
+		sudo virsh net-list --all # used to check status
+
+		#Adding user libvirt to allow access to VMS
+		sudo usermod -aG libvirt $USER
+		sudo usermod -aG libvirt-qemu $USER
+		sudo usermod -aG kvm $USER
+		sudo usermod -aG input $USER
+		sudo usermod -aG disk $USER
+	fi
+
+}
+
+# checking to see if the user has the permissions to run script  --body of the script
+while true
+do
+	if [ $UID -eq 0 ]
+	then
+		echo " # Welcome to Debian Customization Framework # "
+		echo " Usage : $0 "
+	        echo " > Select 1 to change the name of network interface "
+	        echo " > Select 2 to remove libre office "
+ 	        echo " > Select 3 to customize mate desktop environment "
+	        echo " > Select 4 to install common tools "
+	        echo " > Select 5 to install qemu "
+		echo " > Select 6 to exit "
+		read -p " Select your option : " opt
+	else
+	        echo " run as root "
+		echo " Usage: sudo $0 "
+		break
+
+	fi
+
+        #choosing a option 
+        case $opt in
+		"1") inter_change;;
+	        "2") libre_remover;;
+	        "3") mate_customize;;
+	        "4") tool_install ;;
+		"5") qemu_installer ;;
+		"6") exit 0;;
+
+	esac
+clear
+done
